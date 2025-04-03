@@ -1,5 +1,4 @@
 build/*
-include/db/config.h
 .vs/*
 CMakeSettings.json
 *.log
