@@ -16,108 +16,99 @@ namespace db {
 
 DataBlock::RecordIterator::RecordIterator()
     : block(nullptr)
-    , index(0)
-{}
-DataBlock::RecordIterator::~RecordIterator() {}
-DataBlock::RecordIterator::RecordIterator(const RecordIterator &other)
+    , index(0) { }
+DataBlock::RecordIterator::~RecordIterator() { }
+DataBlock::RecordIterator::RecordIterator(const RecordIterator& other)
     : block(other.block)
     , record(other.record)
-    , index(other.index)
-{}
+    , index(other.index) { }
 
-DataBlock::RecordIterator &DataBlock::RecordIterator::operator++()
-{
-    if (block == nullptr || block->getSlots() == 0) return *this;
+DataBlock::RecordIterator& DataBlock::RecordIterator::operator++() {
+    if (block == nullptr || block->getSlots() == 0)
+        return *this;
     index = (++index) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return *this;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return *this;
 }
-DataBlock::RecordIterator DataBlock::RecordIterator::operator++(int)
-{
+DataBlock::RecordIterator DataBlock::RecordIterator::operator++(int) {
     RecordIterator tmp(*this);
-    if (block == nullptr || block->getSlots() == 0) return tmp;
+    if (block == nullptr || block->getSlots() == 0)
+        return tmp;
     index = (++index) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return tmp;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return tmp;
 }
-DataBlock::RecordIterator &DataBlock::RecordIterator::operator--()
-{
-    if (block == nullptr || block->getSlots() == 0) return *this;
+DataBlock::RecordIterator& DataBlock::RecordIterator::operator--() {
+    if (block == nullptr || block->getSlots() == 0)
+        return *this;
     index = (index + block->getSlots()) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return *this;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return *this;
 }
-DataBlock::RecordIterator DataBlock::RecordIterator::operator--(int)
-{
+DataBlock::RecordIterator DataBlock::RecordIterator::operator--(int) {
     RecordIterator tmp(*this);
-    if (block == nullptr || block->getSlots() == 0) return tmp;
+    if (block == nullptr || block->getSlots() == 0)
+        return tmp;
     index = (index + block->getSlots()) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return tmp;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return tmp;
 }
-Record *DataBlock::RecordIterator::operator->() { return &record; }
-DataBlock::RecordIterator &DataBlock::RecordIterator::operator+=(int step)
-{
-    if (block == nullptr || block->getSlots() == 0) return *this;
+Record* DataBlock::RecordIterator::operator->() { return &record; }
+DataBlock::RecordIterator& DataBlock::RecordIterator::operator+=(int step) {
+    if (block == nullptr || block->getSlots() == 0)
+        return *this;
     index = (index + step) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return *this;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return *this;
 }
-DataBlock::RecordIterator &DataBlock::RecordIterator::operator-=(int step)
-{
-    if (block == nullptr || block->getSlots() == 0) return *this;
+DataBlock::RecordIterator& DataBlock::RecordIterator::operator-=(int step) {
+    if (block == nullptr || block->getSlots() == 0)
+        return *this;
     index = (index + step + block->getSlots()) % (block->getSlots() + 1);
     if (index == block->getSlots()) {
         record.detach();
         return *this;
     }
-    Slot *slots = block->getSlotsPointer();
-    record.attach(
-        block->buffer_ + be16toh(slots[index].offset),
+    Slot* slots = block->getSlotsPointer();
+    record.attach(block->buffer_ + be16toh(slots[index].offset),
         be16toh(slots[index].length));
     return *this;
 }
 
-void SuperBlock::clear(unsigned short spaceid)
-{
+void SuperBlock::clear(unsigned short spaceid) {
     // 清buffer
     ::memset(buffer_, 0, SUPER_SIZE);
-    SuperHeader *header = reinterpret_cast<SuperHeader *>(buffer_);
+    SuperHeader* header = reinterpret_cast<SuperHeader*>(buffer_);
 
     // 设置magic number
     header->magic = MAGIC_NUMBER;
@@ -147,14 +138,11 @@ void SuperBlock::clear(unsigned short spaceid)
     setChecksum();
 }
 
-void MetaBlock::clear(
-    unsigned short spaceid,
-    unsigned int self,
-    unsigned short type)
-{
+void MetaBlock::clear(unsigned short spaceid, unsigned int self,
+    unsigned short type) {
     // 清buffer
     ::memset(buffer_, 0, BLOCK_SIZE);
-    MetaHeader *header = reinterpret_cast<MetaHeader *>(buffer_);
+    MetaHeader* header = reinterpret_cast<MetaHeader*>(buffer_);
 
     // 设定magic
     header->magic = MAGIC_NUMBER;
@@ -179,25 +167,23 @@ void MetaBlock::clear(
 }
 
 // TODO: 如果record非full，直接分配，不考虑slot
-std::pair<unsigned char *, bool>
-MetaBlock::allocate(unsigned short space, unsigned short index)
-{
+std::pair<unsigned char*, bool> MetaBlock::allocate(unsigned short space,
+    unsigned short index) {
     bool need_reorder = false;
-    MetaHeader *header = reinterpret_cast<MetaHeader *>(buffer_);
+    MetaHeader* header = reinterpret_cast<MetaHeader*>(buffer_);
     space = ALIGN_TO_SIZE(space); // 先将需要空间数对齐8B
 
     // 计算需要分配的空间，需要考虑到分配Slot的问题
     unsigned short demand_space = space;
     unsigned short freesize = getFreeSize(); // block当前的剩余空间
     unsigned short current_trailersize = getTrailerSize();
-    unsigned short demand_trailersize =
-        (getSlots() + 1) * sizeof(Slot) + sizeof(int);
+    unsigned short demand_trailersize = (getSlots() + 1) * sizeof(Slot) + sizeof(int);
     if (current_trailersize < demand_trailersize)
         demand_space += ALIGN_TO_SIZE(sizeof(Slot)); // 需要的空间数目
 
     // 该block空间不够
     if (freesize < demand_space)
-        return std::pair<unsigned char *, bool>(nullptr, false);
+        return std::pair<unsigned char*, bool>(nullptr, false);
 
     // 如果freespace空间不够，先回收删除的记录
     unsigned short freespacesize = getFreespaceSize();
@@ -211,14 +197,14 @@ MetaBlock::allocate(unsigned short space, unsigned short index)
     }
 
     // 从freespace分配空间
-    unsigned char *ret = buffer_ + getFreeSpace();
+    unsigned char* ret = buffer_ + getFreeSpace();
 
     // 增加slots计数
     unsigned short old = getSlots();
     unsigned short total = std::min<unsigned short>(old, index);
     setSlots(old + 1);
     // 在slots[]顶部增加一个条目
-    Slot *new_position = getSlotsPointer();
+    Slot* new_position = getSlotsPointer();
     for (unsigned short i = 0; i < total; ++i, ++new_position)
         *new_position = *(new_position + 1);
     new_position = getSlotsPointer() + index;
@@ -230,31 +216,28 @@ MetaBlock::allocate(unsigned short space, unsigned short index)
     // 设定freespace偏移量
     setFreeSpace(getFreeSpace() + space);
 
-    return std::pair<unsigned char *, bool>(ret, need_reorder);
+    return std::pair<unsigned char*, bool>(ret, need_reorder);
 }
 
 // TODO: 需要考虑record非full的情况
-void MetaBlock::deallocate(unsigned short index)
-{
-    MetaHeader *header = reinterpret_cast<MetaHeader *>(buffer_);
+void MetaBlock::deallocate(unsigned short index) {
+    MetaHeader* header = reinterpret_cast<MetaHeader*>(buffer_);
 
     // 计算需要删除的记录的槽位
-    Slot *pslot = reinterpret_cast<Slot *>(
-        buffer_ + BLOCK_SIZE - sizeof(int) -
-        sizeof(Slot) * (getSlots() - index));
+    Slot* pslot = reinterpret_cast<Slot*>(buffer_ + BLOCK_SIZE - sizeof(int) - sizeof(Slot) * (getSlots() - index));
     Slot slot;
     slot.offset = be16toh(pslot->offset);
     slot.length = be16toh(pslot->length);
 
     // 设置tombstone
     Record record;
-    unsigned char *space = buffer_ + slot.offset;
+    unsigned char* space = buffer_ + slot.offset;
     record.attach(space, 8); // 只使用8个字节
     record.die();
 
     // 挤压slots[]
     for (unsigned short i = index; i > 0; --i) {
-        Slot *from = pslot;
+        Slot* from = pslot;
         --from;
         pslot->offset = from->offset;
         pslot->length = from->length;
@@ -272,16 +255,13 @@ void MetaBlock::deallocate(unsigned short index)
     setFreeSize(getFreeSize() + slot.length);
 }
 
-void MetaBlock::shrink()
-{
-    MetaHeader *header = reinterpret_cast<MetaHeader *>(buffer_);
-    Slot *slots = getSlotsPointer();
+void MetaBlock::shrink() {
+    MetaHeader* header = reinterpret_cast<MetaHeader*>(buffer_);
+    Slot* slots = getSlotsPointer();
 
     // 按照偏移量重新排序slots[]函数
-    struct OffsetSort
-    {
-        bool operator()(const Slot &x, const Slot &y)
-        {
+    struct OffsetSort {
+        bool operator()(const Slot& x, const Slot& y) {
             return be16toh(x.offset) < be16toh(y.offset);
         }
     };
@@ -294,7 +274,8 @@ void MetaBlock::shrink()
     for (unsigned short i = 0; i < getSlots(); ++i) {
         unsigned short len = be16toh((slots + i)->length);
         unsigned short off = be16toh((slots + i)->offset);
-        if (offset < off) memmove(buffer_ + offset, buffer_ + off, len);
+        if (offset < off)
+            memmove(buffer_ + offset, buffer_ + off, len);
         (slots + i)->offset = htobe16(offset);
         offset += len;
         space += len;
@@ -306,31 +287,28 @@ void MetaBlock::shrink()
     setFreeSize(BLOCK_SIZE - sizeof(MetaHeader) - getTrailerSize() - space);
 }
 
-unsigned short DataBlock::searchRecord(void *buf, size_t len)
-{
-    DataHeader *header = reinterpret_cast<DataHeader *>(buffer_);
+unsigned short DataBlock::searchRecord(void* buf, size_t len) {
+    DataHeader* header = reinterpret_cast<DataHeader*>(buffer_);
 
     // 获取key位置
-    RelationInfo *info = table_->info_;
+    RelationInfo* info = table_->info_;
     unsigned int key = info->key;
 
     // 调用数据类型的搜索
     return info->fields[key].type->search(buffer_, key, buf, len);
 }
 
-std::pair<unsigned short, bool>
-DataBlock::splitPosition(size_t space, unsigned short index)
-{
-    DataHeader *header = reinterpret_cast<DataHeader *>(buffer_);
-    RelationInfo *info = table_->info_;
+std::pair<unsigned short, bool> DataBlock::splitPosition(size_t space,
+    unsigned short index) {
+    DataHeader* header = reinterpret_cast<DataHeader*>(buffer_);
+    RelationInfo* info = table_->info_;
     unsigned int key = info->key;
-    static const unsigned short BlockHalf =
-        (BLOCK_SIZE - sizeof(DataHeader) - 8) / 2; // 一半的大小
+    static const unsigned short BlockHalf = (BLOCK_SIZE - sizeof(DataHeader) - 8) / 2; // 一半的大小
 
     // 枚举所有记录
     unsigned short count = getSlots();
     size_t half = 0;
-    Slot *slots = getSlotsPointer();
+    Slot* slots = getSlotsPointer();
     bool included = false;
     unsigned short i;
     for (i = 0; i < count; ++i) {
@@ -346,41 +324,34 @@ DataBlock::splitPosition(size_t space, unsigned short index)
 
         // fallthrough, i != index
         half += be16toh(slots[i].length);
-        if (half > BlockHalf) break;
+        if (half > BlockHalf)
+            break;
     }
     return std::pair<unsigned short, bool>(i, included);
 }
 
-unsigned short DataBlock::requireLength(std::vector<struct iovec> &iov)
-{
+unsigned short DataBlock::requireLength(std::vector<struct iovec>& iov) {
     size_t length = ALIGN_TO_SIZE(Record::size(iov)); // 对齐8B后的长度
-    size_t trailer =
-        ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) -
-        ALIGN_TO_SIZE(
-            getSlots() * sizeof(Slot) +
-            sizeof(unsigned int)); // trailer新增部分
-    return (unsigned short) (length + trailer);
+    size_t trailer = ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) - ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int)); // trailer新增部分
+    return (unsigned short)(length + trailer);
 }
 
 std::pair<bool, unsigned short>
-DataBlock::insertRecord(std::vector<struct iovec> &iov)
-{
-    RelationInfo *info = table_->info_;
+DataBlock::insertRecord(std::vector<struct iovec>& iov) {
+    RelationInfo* info = table_->info_;
     unsigned int key = info->key;
-    DataType *type = info->fields[key].type;
+    DataType* type = info->fields[key].type;
 
     // 先确定插入位置
-    unsigned short index =
-        type->search(buffer_, key, iov[key].iov_base, iov[key].iov_len);
+    unsigned short index = type->search(buffer_, key, iov[key].iov_base, iov[key].iov_len);
 
     // 比较key
     Record record;
     if (index < getSlots()) {
-        Slot *slots = getSlotsPointer();
-        record.attach(
-            buffer_ + be16toh(slots[index].offset),
+        Slot* slots = getSlotsPointer();
+        record.attach(buffer_ + be16toh(slots[index].offset),
             be16toh(slots[index].length));
-        unsigned char *pkey;
+        unsigned char* pkey;
         unsigned int len;
         record.refByIndex(&pkey, &len, key);
         if (memcmp(pkey, iov[key].iov_base, len) == 0) // key相等不能插入
@@ -389,38 +360,35 @@ DataBlock::insertRecord(std::vector<struct iovec> &iov)
 
     // 如果block空间足够，插入
     size_t blen = getFreeSize(); // 该block的富余空间
-    unsigned short actlen = (unsigned short) Record::size(iov);
+    unsigned short actlen = (unsigned short)Record::size(iov);
     unsigned short alignlen = ALIGN_TO_SIZE(actlen);
-    unsigned short trailerlen =
-        ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) -
-        ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int));
+    unsigned short trailerlen = ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) - ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int));
     if (blen < actlen + trailerlen)
         return std::pair<bool, unsigned short>(false, index);
 
     // 分配空间
-    std::pair<unsigned char *, bool> alloc_ret = allocate(actlen, index);
+    std::pair<unsigned char*, bool> alloc_ret = allocate(actlen, index);
     // 填写记录
     record.attach(alloc_ret.first, actlen);
     unsigned char header = 0;
     record.set(iov, &header);
     // 重新排序
-    if (alloc_ret.second) reorder(type, key);
+    if (alloc_ret.second)
+        reorder(type, key);
 
     return std::pair<bool, unsigned short>(true, index);
 }
 
-bool DataBlock::copyRecord(Record &record)
-{
+bool DataBlock::copyRecord(Record& record) {
     // 判断剩余空间是否足够
     size_t blen = getFreespaceSize(); // 该block的富余空间
-    unsigned short actlen = (unsigned short) record.allocLength();
-    unsigned short trailerlen =
-        ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) -
-        ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int));
-    if (blen < actlen + trailerlen) return false;
+    unsigned short actlen = (unsigned short)record.allocLength();
+    unsigned short trailerlen = ALIGN_TO_SIZE((getSlots() + 1) * sizeof(Slot) + sizeof(unsigned int)) - ALIGN_TO_SIZE(getSlots() * sizeof(Slot) + sizeof(unsigned int));
+    if (blen < actlen + trailerlen)
+        return false;
 
     // 分配空间，然后copy
-    std::pair<unsigned char *, bool> alloc_ret = allocate(actlen, getSlots());
+    std::pair<unsigned char*, bool> alloc_ret = allocate(actlen, getSlots());
     memcpy(alloc_ret.first, record.buffer_, actlen);
 
 #if 0
@@ -433,21 +401,19 @@ bool DataBlock::copyRecord(Record &record)
     return true;
 }
 
-DataBlock::RecordIterator DataBlock::beginrecord()
-{
+DataBlock::RecordIterator DataBlock::beginrecord() {
     RecordIterator ri;
     ri.block = this;
     ri.index = 0;
 
     if (getSlots()) {
-        Slot *slots = getSlotsPointer();
-        ri.record.attach(
-            buffer_ + be16toh(slots[0].offset), be16toh(slots[0].length));
+        Slot* slots = getSlotsPointer();
+        ri.record.attach(buffer_ + be16toh(slots[0].offset),
+            be16toh(slots[0].length));
     }
     return ri;
 }
-DataBlock::RecordIterator DataBlock::endrecord()
-{
+DataBlock::RecordIterator DataBlock::endrecord() {
     RecordIterator ri;
     ri.block = this;
     ri.index = getSlots();
