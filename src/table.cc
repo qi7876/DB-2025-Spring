@@ -284,6 +284,10 @@ int Table::insert(unsigned int blkid, std::vector<struct iovec> &iov)
     return S_OK;
 }
 
+int Table::remove(unsigned int blkid, void *keybuf, unsigned int len){}
+
+int Table::update(unsigned int blkid, std::vector<struct iovec> &iov){}
+
 size_t Table::recordCount()
 {
     BufDesp *bd = kBuffer.borrow(name_.c_str(), 0);
