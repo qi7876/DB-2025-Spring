@@ -11,23 +11,22 @@
 namespace db {
 
 Table::BlockIterator::BlockIterator()
-    : bufdesp(nullptr)
-{}
-Table::BlockIterator::~BlockIterator()
-{
-    if (bufdesp) kBuffer.releaseBuf(bufdesp);
+    : bufdesp(nullptr) { }
+Table::BlockIterator::~BlockIterator() {
+    if (bufdesp)
+        kBuffer.releaseBuf(bufdesp);
 }
-Table::BlockIterator::BlockIterator(const BlockIterator &other)
+Table::BlockIterator::BlockIterator(const BlockIterator& other)
     : block(other.block)
-    , bufdesp(other.bufdesp)
-{
-    if (bufdesp) bufdesp->addref();
+    , bufdesp(other.bufdesp) {
+    if (bufdesp)
+        bufdesp->addref();
 }
 
 // 前置操作
-Table::BlockIterator &Table::BlockIterator::operator++()
-{
-    if (block.buffer_ == nullptr) return *this;
+Table::BlockIterator& Table::BlockIterator::operator++() {
+    if (block.buffer_ == nullptr)
+        return *this;
     unsigned int blockid = block.getNext();
     kBuffer.releaseBuf(bufdesp);
     if (blockid) {
@@ -38,10 +37,10 @@ Table::BlockIterator &Table::BlockIterator::operator++()
     return *this;
 }
 // 后置操作
-Table::BlockIterator Table::BlockIterator::operator++(int)
-{
+Table::BlockIterator Table::BlockIterator::operator++(int) {
     BlockIterator tmp(*this);
-    if (block.buffer_ == nullptr) return *this;
+    if (block.buffer_ == nullptr)
+        return *this;
     unsigned int blockid = block.getNext();
     kBuffer.releaseBuf(bufdesp);
     if (blockid) {
@@ -52,18 +51,17 @@ Table::BlockIterator Table::BlockIterator::operator++(int)
     return tmp;
 }
 // 数据块指针
-DataBlock *Table::BlockIterator::operator->() { return &block; }
-void Table::BlockIterator::release()
-{
+DataBlock* Table::BlockIterator::operator->() { return &block; }
+void Table::BlockIterator::release() {
     bufdesp->relref();
     block.detach();
 }
 
-int Table::open(const char *name)
-{
+int Table::open(const char* name) {
     // 查找table
     std::pair<Schema::TableSpace::iterator, bool> bret = kSchema.lookup(name);
-    if (!bret.second) return EEXIST; // 表不存在
+    if (!bret.second)
+        return EEXIST; // 表不存在
 
     // 填充结构
     name_ = name;
@@ -71,7 +69,7 @@ int Table::open(const char *name)
 
     // 加载超块
     SuperBlock super;
-    BufDesp *desp = kBuffer.borrow(name, 0);
+    BufDesp* desp = kBuffer.borrow(name, 0);
     super.attach(desp->buffer);
 
     // 获取元数据
@@ -85,12 +83,11 @@ int Table::open(const char *name)
     return S_OK;
 }
 
-unsigned int Table::allocate()
-{
+unsigned int Table::allocate() {
     // 空闲链上有block
     DataBlock data;
     SuperBlock super;
-    BufDesp *desp;
+    BufDesp* desp;
 
     if (idle_) {
         // 读idle块，获得下一个空闲块
@@ -142,11 +139,10 @@ unsigned int Table::allocate()
     return maxid_;
 }
 
-void Table::deallocate(unsigned int blockid)
-{
+void Table::deallocate(unsigned int blockid) {
     // 读idle块，获得下一个空闲块
     DataBlock data;
-    BufDesp *desp = kBuffer.borrow(name_.c_str(), blockid);
+    BufDesp* desp = kBuffer.borrow(name_.c_str(), blockid);
     data.attach(desp->buffer);
     data.setNext(idle_);
     data.setChecksum();
@@ -170,14 +166,13 @@ void Table::deallocate(unsigned int blockid)
     idle_ = blockid;
 }
 
-Table::BlockIterator Table::beginblock()
-{
+Table::BlockIterator Table::beginblock() {
     // 通过超块找到第1个数据块的id
     BlockIterator bi;
     bi.block.table_ = this;
 
     // 获取第1个blockid
-    BufDesp *bd = kBuffer.borrow(name_.c_str(), 0);
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), 0);
     SuperBlock super;
     super.attach(bd->buffer);
     unsigned int blockid = super.getFirst();
@@ -188,17 +183,15 @@ Table::BlockIterator Table::beginblock()
     return bi;
 }
 
-Table::BlockIterator Table::endblock()
-{
+Table::BlockIterator Table::endblock() {
     BlockIterator bi;
     bi.block.table_ = this;
     return bi;
 }
 
-unsigned int Table::locate(void *keybuf, unsigned int len)
-{
+unsigned int Table::locate(void* keybuf, unsigned int len) {
     unsigned int key = info_->key;
-    DataType *type = info_->fields[key].type;
+    DataType* type = info_->fields[key].type;
 
     BlockIterator prev = beginblock();
     for (BlockIterator bi = beginblock(); bi != endblock(); ++bi) {
@@ -207,16 +200,16 @@ unsigned int Table::locate(void *keybuf, unsigned int len)
         bi->refslots(0, record);
 
         // 与参数比较
-        unsigned char *pkey;
+        unsigned char* pkey;
         unsigned int klen;
         record.refByIndex(&pkey, &klen, key);
-        bool bret = type->less(pkey, klen, (unsigned char *) keybuf, len);
+        bool bret = type->less(pkey, klen, (unsigned char*)keybuf, len);
         if (bret) {
             prev = bi;
             continue;
         }
         // 要排除相等的情况
-        bret = type->less((unsigned char *) keybuf, len, pkey, klen);
+        bret = type->less((unsigned char*)keybuf, len, pkey, klen);
         if (bret)
             return prev->getSelf(); //
         else
@@ -225,14 +218,13 @@ unsigned int Table::locate(void *keybuf, unsigned int len)
     return prev->getSelf();
 }
 
-int Table::insert(unsigned int blkid, std::vector<struct iovec> &iov)
-{
+int Table::insert(unsigned int blkid, std::vector<struct iovec>& iov) {
     DataBlock data;
     SuperBlock super;
     data.setTable(this);
 
     // 从buffer中借用
-    BufDesp *bd = kBuffer.borrow(name_.c_str(), blkid);
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), blkid);
     data.attach(bd->buffer);
     // 尝试插入
     std::pair<bool, unsigned short> ret = data.insertRecord(iov);
@@ -244,20 +236,19 @@ int Table::insert(unsigned int blkid, std::vector<struct iovec> &iov)
         super.setRecords(super.getRecords() + 1);
         bd->relref();
         return S_OK; // 插入成功
-    } else if (ret.second == (unsigned short) -1) {
+    } else if (ret.second == (unsigned short)-1) {
         kBuffer.releaseBuf(bd); // 释放buffer
-        return EEXIST;          // key已经存在
+        return EEXIST; // key已经存在
     }
 
     // 分裂block
     unsigned short insert_position = ret.second;
-    std::pair<unsigned short, bool> split_position =
-        data.splitPosition(Record::size(iov), insert_position);
+    std::pair<unsigned short, bool> split_position = data.splitPosition(Record::size(iov), insert_position);
     // 先分配一个block
     DataBlock next;
     next.setTable(this);
     blkid = allocate();
-    BufDesp *bd2 = kBuffer.borrow(name_.c_str(), blkid);
+    BufDesp* bd2 = kBuffer.borrow(name_.c_str(), blkid);
     next.attach(bd2->buffer);
 
     // 移动记录到新的block上
@@ -284,13 +275,96 @@ int Table::insert(unsigned int blkid, std::vector<struct iovec> &iov)
     return S_OK;
 }
 
-int Table::remove(unsigned int blkid, void *keybuf, unsigned int len){}
+int Table::remove(unsigned int blkid, void* keybuf, unsigned int len) {
+    DataType* type = info_->fields[info_->key].type;
+    DataBlock data;
+    data.setTable(this);
 
-int Table::update(unsigned int blkid, std::vector<struct iovec> &iov){}
+    // Get the block
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), blkid);
+    data.attach(bd->buffer);
 
-size_t Table::recordCount()
-{
-    BufDesp *bd = kBuffer.borrow(name_.c_str(), 0);
+    // Find and remove the record with matching key
+    for (unsigned short i = 0; i < data.getSlots(); ++i) {
+        Record record;
+        data.refslots(i, record);
+        
+        unsigned char* pkey;
+        unsigned int klen;
+        record.refByIndex(&pkey, &klen, info_->key);
+        
+        // Compare keys
+        if (!type->less(pkey, klen, (unsigned char*)keybuf, len) && 
+            !type->less((unsigned char*)keybuf, len, pkey, klen)) {
+            // Keys match - remove this record
+            data.deallocate(i);
+            data.setChecksum();
+            kBuffer.writeBuf(bd);
+            kBuffer.releaseBuf(bd);
+
+            // Update record count in super block
+            bd = kBuffer.borrow(name_.c_str(), 0);
+            SuperBlock super;
+            super.attach(bd->buffer);
+            super.setRecords(super.getRecords() - 1);
+            super.setChecksum();
+            kBuffer.writeBuf(bd);
+            bd->relref();
+            
+            return S_OK;
+        }
+    }
+    
+    kBuffer.releaseBuf(bd);
+    return ENOENT;
+}
+
+int Table::update(unsigned int blkid, std::vector<struct iovec>& iov) {
+    DataType* type = info_->fields[info_->key].type;
+    DataBlock data;
+    data.setTable(this);
+
+    // Get block
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), blkid);
+    data.attach(bd->buffer);
+
+    // Find record with matching key
+    for (unsigned short i = 0; i < data.getSlots(); ++i) {
+        Record record;
+        data.refslots(i, record);
+        
+        unsigned char* pkey;
+        unsigned int klen;
+        record.refByIndex(&pkey, &klen, info_->key);
+        
+        // Compare keys
+        unsigned char* newkey;
+        unsigned int newlen;
+        newkey = (unsigned char*)iov[info_->key].iov_base;
+        newlen = iov[info_->key].iov_len;
+        
+        if (!type->less(pkey, klen, newkey, newlen) && 
+            !type->less(newkey, newlen, pkey, klen)) {
+            // Found matching record - update it
+            data.deallocate(i);
+            std::pair<bool, unsigned short> ret = data.insertRecord(iov);
+            if (!ret.first) {
+                kBuffer.releaseBuf(bd);
+                return EFAULT;
+            }
+            data.setChecksum();
+            kBuffer.writeBuf(bd);
+            kBuffer.releaseBuf(bd);
+            return S_OK;
+        }
+    }
+    
+    kBuffer.releaseBuf(bd);
+    return ENOENT;
+}
+
+size_t Table::recordCount() {
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), 0);
     SuperBlock super;
     super.attach(bd->buffer);
     size_t count = super.getRecords();
@@ -298,9 +372,8 @@ size_t Table::recordCount()
     return count;
 }
 
-unsigned int Table::dataCount()
-{
-    BufDesp *bd = kBuffer.borrow(name_.c_str(), 0);
+unsigned int Table::dataCount() {
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), 0);
     SuperBlock super;
     super.attach(bd->buffer);
     unsigned int count = super.getDataCounts();
@@ -308,9 +381,8 @@ unsigned int Table::dataCount()
     return count;
 }
 
-unsigned int Table::idleCount()
-{
-    BufDesp *bd = kBuffer.borrow(name_.c_str(), 0);
+unsigned int Table::idleCount() {
+    BufDesp* bd = kBuffer.borrow(name_.c_str(), 0);
     SuperBlock super;
     super.attach(bd->buffer);
     unsigned int count = super.getIdleCounts();

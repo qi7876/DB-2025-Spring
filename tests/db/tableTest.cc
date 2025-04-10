@@ -372,4 +372,74 @@ TEST_CASE("db/table.h")
 
         REQUIRE(!check(table));
     }
+
+    SECTION("remove")
+    {
+        Table table;
+        table.open("table");
+        size_t initial_count = table.recordCount();
+        REQUIRE(initial_count > 0);
+
+        // Try to remove a record
+        Table::BlockIterator bi = table.beginblock();
+        Record record;
+        bi->refslots(0, record);
+        unsigned char* pkey;
+        unsigned int len;
+        record.refByIndex(&pkey, &len, 0);
+        
+        // Get the block id where this record exists
+        unsigned int blkid = table.locate(pkey, len);
+        
+        // Remove the record
+        int ret = table.remove(blkid, pkey, len);
+        REQUIRE(ret == S_OK);
+        REQUIRE(table.recordCount() == initial_count - 1);
+        
+        // Try to remove non-existent record
+        long long fake_id = htobe64(999999);
+        ret = table.remove(blkid, &fake_id, sizeof(fake_id));
+        REQUIRE(ret == ENOENT);
+        REQUIRE(!check(table));
+    }
+
+    SECTION("update")
+    {
+        Table table;
+        table.open("table");
+        
+        // Prepare test data
+        std::vector<struct iovec> iov(3);
+        char phone[20] = "12345678900";
+        char addr[128] = "New Address";
+        
+        // Get an existing record's key
+        Table::BlockIterator bi = table.beginblock();
+        Record record;
+        bi->refslots(0, record);
+        unsigned char* pkey;
+        unsigned int len;
+        record.refByIndex(&pkey, &len, 0);
+        
+        // Prepare update data with same key
+        iov[0].iov_base = pkey;
+        iov[0].iov_len = len;
+        iov[1].iov_base = phone;
+        iov[1].iov_len = 20;
+        iov[2].iov_base = addr;
+        iov[2].iov_len = strlen(addr);
+        
+        // Update the record
+        unsigned int blkid = table.locate(pkey, len);
+        int ret = table.update(blkid, iov);
+        REQUIRE(ret == S_OK);
+        
+        // Try to update non-existent record
+        long long fake_id = htobe64(999999);
+        iov[0].iov_base = &fake_id;
+        iov[0].iov_len = sizeof(fake_id);
+        ret = table.update(blkid, iov);
+        REQUIRE(ret == ENOENT);
+        REQUIRE(!check(table));
+    }
 }
