@@ -276,91 +276,71 @@ int Table::insert(unsigned int blkid, std::vector<struct iovec>& iov) {
 }
 
 int Table::remove(unsigned int blkid, void* keybuf, unsigned int len) {
-    DataType* type = info_->fields[info_->key].type;
     DataBlock data;
+    SuperBlock super;
     data.setTable(this);
-
-    // Get the block
+    
+    // Borrow the block from buffer
     BufDesp* bd = kBuffer.borrow(name_.c_str(), blkid);
+    if (!bd) return EFAULT;
+    
     data.attach(bd->buffer);
-
-    // Find and remove the record with matching key
-    for (unsigned short i = 0; i < data.getSlots(); ++i) {
+    
+    // Find the record with the given key
+    unsigned short slotCount = data.getSlots();
+    unsigned short pos = (unsigned short)-1;
+    unsigned int keyIndex = info_->key;
+    
+    for (unsigned short i = 0; i < slotCount; i++) {
         Record record;
         data.refslots(i, record);
         
         unsigned char* pkey;
         unsigned int klen;
-        record.refByIndex(&pkey, &klen, info_->key);
+        record.refByIndex(&pkey, &klen, keyIndex);
         
-        // Compare keys
-        if (!type->less(pkey, klen, (unsigned char*)keybuf, len) && 
-            !type->less((unsigned char*)keybuf, len, pkey, klen)) {
-            // Keys match - remove this record
-            data.deallocate(i);
-            data.setChecksum();
-            kBuffer.writeBuf(bd);
-            kBuffer.releaseBuf(bd);
-
-            // Update record count in super block
-            bd = kBuffer.borrow(name_.c_str(), 0);
-            SuperBlock super;
-            super.attach(bd->buffer);
-            super.setRecords(super.getRecords() - 1);
-            super.setChecksum();
-            kBuffer.writeBuf(bd);
-            bd->relref();
-            
-            return S_OK;
+        if (klen == len && memcmp(pkey, keybuf, len) == 0) {
+            pos = i;
+            break;
         }
     }
     
+    if (pos == (unsigned short)-1) {
+        kBuffer.releaseBuf(bd);
+        return ENOENT; // Record not found
+    }
+    
+    // Remove the record
+    data.deallocate(pos);
+    kBuffer.writeBuf(bd);
     kBuffer.releaseBuf(bd);
-    return ENOENT;
+    
+    // Update the record count in super block
+    bd = kBuffer.borrow(name_.c_str(), 0);
+    if (!bd) return EFAULT;
+    
+    super.attach(bd->buffer);
+    super.setRecords(super.getRecords() - 1);
+    super.setChecksum();
+    
+    kBuffer.writeBuf(bd);
+    kBuffer.releaseBuf(bd);
+    
+    return S_OK;
 }
 
 int Table::update(unsigned int blkid, std::vector<struct iovec>& iov) {
-    DataType* type = info_->fields[info_->key].type;
-    DataBlock data;
-    data.setTable(this);
-
-    // Get block
-    BufDesp* bd = kBuffer.borrow(name_.c_str(), blkid);
-    data.attach(bd->buffer);
-
-    // Find record with matching key
-    for (unsigned short i = 0; i < data.getSlots(); ++i) {
-        Record record;
-        data.refslots(i, record);
-        
-        unsigned char* pkey;
-        unsigned int klen;
-        record.refByIndex(&pkey, &klen, info_->key);
-        
-        // Compare keys
-        unsigned char* newkey;
-        unsigned int newlen;
-        newkey = (unsigned char*)iov[info_->key].iov_base;
-        newlen = iov[info_->key].iov_len;
-        
-        if (!type->less(pkey, klen, newkey, newlen) && 
-            !type->less(newkey, newlen, pkey, klen)) {
-            // Found matching record - update it
-            data.deallocate(i);
-            std::pair<bool, unsigned short> ret = data.insertRecord(iov);
-            if (!ret.first) {
-                kBuffer.releaseBuf(bd);
-                return EFAULT;
-            }
-            data.setChecksum();
-            kBuffer.writeBuf(bd);
-            kBuffer.releaseBuf(bd);
-            return S_OK;
-        }
-    }
+    void* keybuf = iov[info_->key].iov_base;
+    unsigned int len = (unsigned int)iov[info_->key].iov_len;
     
-    kBuffer.releaseBuf(bd);
-    return ENOENT;
+    // First, remove the record with the same key
+    int ret = remove(blkid, keybuf, len);
+    if (ret != S_OK)
+        return ret; // Key not found
+    
+    // Then, insert the new record
+    ret = insert(blkid, iov);
+    return ret;
 }
 
 size_t Table::recordCount() {

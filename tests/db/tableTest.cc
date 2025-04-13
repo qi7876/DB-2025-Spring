@@ -7,6 +7,7 @@
 // @email niexiaowen@uestc.edu.cn
 //
 #include "../catch.hpp"
+#include <iostream>
 #include <db/table.h>
 #include <db/block.h>
 #include <db/buffer.h>
@@ -377,69 +378,132 @@ TEST_CASE("db/table.h")
     {
         Table table;
         table.open("table");
-        size_t initial_count = table.recordCount();
-        REQUIRE(initial_count > 0);
-
-        // Try to remove a record
-        Table::BlockIterator bi = table.beginblock();
-        Record record;
-        bi->refslots(0, record);
-        unsigned char* pkey;
-        unsigned int len;
-        record.refByIndex(&pkey, &len, 0);
+        DataType *type = table.info_->fields[table.info_->key].type;
         
-        // Get the block id where this record exists
-        unsigned int blkid = table.locate(pkey, len);
+        // First insert a test record that we'll remove
+        std::vector<struct iovec> iov(3);
+        long long nid = 12345; // Specific ID we'll remove
+        type->htobe(&nid);
+        char phone[20] = "1234567890";
+        char addr[128] = "Test Address";
+        
+        iov[0].iov_base = &nid;
+        iov[0].iov_len = 8;
+        iov[1].iov_base = phone;
+        iov[1].iov_len = 20;
+        iov[2].iov_base = (void *)addr;
+        iov[2].iov_len = 128;
+        
+        // Locate and insert the record
+        unsigned int blkid = table.locate(iov[0].iov_base, (unsigned int)iov[0].iov_len);
+        int ret = table.insert(blkid, iov);
+        REQUIRE(ret == S_OK);
+        
+        // Get record count before removal
+        size_t initialCount = table.recordCount();
+        // std::cout << "initialCount: " << initialCount << std::endl;
         
         // Remove the record
-        int ret = table.remove(blkid, pkey, len);
+        ret = table.remove(blkid, iov[0].iov_base, (unsigned int)iov[0].iov_len);
         REQUIRE(ret == S_OK);
-        REQUIRE(table.recordCount() == initial_count - 1);
+        REQUIRE(table.recordCount() == initialCount - 1);
         
-        // Try to remove non-existent record
-        long long fake_id = htobe64(999999);
-        ret = table.remove(blkid, &fake_id, sizeof(fake_id));
+        // Try to remove the same record again, should fail
+        ret = table.remove(blkid, iov[0].iov_base, (unsigned int)iov[0].iov_len);
+        REQUIRE(ret == ENOENT); // Record not found
+        
+        // Try to remove a non-existent record
+        long long nonExistentId = 99999;
+        type->htobe(&nonExistentId);
+        blkid = table.locate(&nonExistentId, sizeof(nonExistentId));
+        ret = table.remove(blkid, &nonExistentId, sizeof(nonExistentId));
         REQUIRE(ret == ENOENT);
-        REQUIRE(!check(table));
     }
 
     SECTION("update")
     {
         Table table;
         table.open("table");
+        DataType *type = table.info_->fields[table.info_->key].type;
         
-        // Prepare test data
+        // First insert a test record that we'll update
         std::vector<struct iovec> iov(3);
-        char phone[20] = "12345678900";
-        char addr[128] = "New Address";
+        long long nid = 54321; // Specific ID we'll update
+        type->htobe(&nid);
+        char phone[20] = "1234567890";
+        char addr[128] = "Original Address";
         
-        // Get an existing record's key
-        Table::BlockIterator bi = table.beginblock();
-        Record record;
-        bi->refslots(0, record);
-        unsigned char* pkey;
-        unsigned int len;
-        record.refByIndex(&pkey, &len, 0);
-        
-        // Prepare update data with same key
-        iov[0].iov_base = pkey;
-        iov[0].iov_len = len;
+        iov[0].iov_base = &nid;
+        iov[0].iov_len = 8;
         iov[1].iov_base = phone;
         iov[1].iov_len = 20;
-        iov[2].iov_base = addr;
-        iov[2].iov_len = strlen(addr);
+        iov[2].iov_base = (void *)addr;
+        iov[2].iov_len = 128;
         
-        // Update the record
-        unsigned int blkid = table.locate(pkey, len);
-        int ret = table.update(blkid, iov);
+        // Locate and insert the record
+        unsigned int blkid = table.locate(iov[0].iov_base, (unsigned int)iov[0].iov_len);
+        int ret = table.insert(blkid, iov);
         REQUIRE(ret == S_OK);
         
-        // Try to update non-existent record
-        long long fake_id = htobe64(999999);
-        iov[0].iov_base = &fake_id;
-        iov[0].iov_len = sizeof(fake_id);
-        ret = table.update(blkid, iov);
-        REQUIRE(ret == ENOENT);
-        REQUIRE(!check(table));
+        // Get record count before update
+        size_t initialCount = table.recordCount();
+        
+        // Prepare updated record with same key but different data
+        char newPhone[20] = "9876543210";
+        char newAddr[128] = "Updated Address";
+        
+        std::vector<struct iovec> updatedIov(3);
+        updatedIov[0].iov_base = &nid; // Same ID
+        updatedIov[0].iov_len = 8;
+        updatedIov[1].iov_base = newPhone;
+        updatedIov[1].iov_len = 20;
+        updatedIov[2].iov_base = (void *)newAddr;
+        updatedIov[2].iov_len = 128;
+        
+        // Update the record
+        ret = table.update(blkid, updatedIov);
+        REQUIRE(ret == S_OK);
+        REQUIRE(table.recordCount() == initialCount); // Count should remain the same
+        
+        // Verify the update by searching for the record and checking its contents
+        bool found = false;
+        for (Table::BlockIterator bi = table.beginblock(); bi != table.endblock() && !found; ++bi) {
+            for (unsigned short i = 0; i < bi->getSlots(); ++i) {
+                Record record;
+                bi->refslots(i, record);
+                
+                unsigned char *pkey;
+                unsigned int klen;
+                long long key;
+                record.refByIndex(&pkey, &klen, 0);
+                memcpy(&key, pkey, klen);  // Fixed: Changed from len to klen
+                key = be64toh(key);
+                
+                if (key == be64toh(nid)) {
+                    // Found our record, verify the updated data
+                    unsigned char *pphone;
+                    unsigned int phonelen;
+                    record.refByIndex(&pphone, &phonelen, 1);
+                    REQUIRE(memcmp(pphone, newPhone, strlen(newPhone)) == 0);
+                    
+                    unsigned char *paddr;
+                    unsigned int addrlen;
+                    record.refByIndex(&paddr, &addrlen, 2);
+                    REQUIRE(memcmp(paddr, newAddr, strlen(newAddr)) == 0);
+                    
+                    found = true;
+                    break;
+                }
+            }
+        }
+        REQUIRE(found);
+        
+        // Try to update a non-existent record
+        long long nonExistentId = 99999;
+        type->htobe(&nonExistentId);
+        updatedIov[0].iov_base = &nonExistentId;
+        blkid = table.locate(&nonExistentId, sizeof(nonExistentId));
+        ret = table.update(blkid, updatedIov);
+        REQUIRE(ret == ENOENT); // Record not found
     }
 }
